@@ -3,6 +3,7 @@
   "deno.lint": false,
   "deno.unstable": true,
   "deno.suggest.imports.hosts": {
-    "https://unpkg.com": false
+    "https://unpkg.com": false,
+    "https://deno.land": true
   }
 }
