@@ -10,6 +10,22 @@ import { join } from 'https://deno.land/std/path/mod.ts';
 import xml from 'https://cdn.skypack.dev/xmlbuilder2';
 import { Simulation, EventSummary } from './types.d.ts';
 
+switch (input) {
+  case '--help':
+  case '-h':
+    console.info(`flightclub-to-kml`);
+    console.info(`Generates KML files from rocket launch data`);
+    console.info(``);
+    console.info(`USAGE:`);
+    console.info(`flightclub-to-kml [FLIGHTCLUB LAUNCH UUID]`);
+    console.info(``);
+    console.info(`OPTIONS:`);
+    console.info(`-h, --help`);
+    console.info(`        Prints help information`);
+    Deno.exit(0);
+    break;
+}
+
 const uuid_reg =
   /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
 let fc_json: Simulation;
