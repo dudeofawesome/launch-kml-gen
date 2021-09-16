@@ -8,12 +8,11 @@ import { red } from 'https://deno.land/std/fmt/colors.ts';
 // import xml from 'https://dev.jspm.io/xmlbuilder2';
 import { join } from 'https://deno.land/std/path/mod.ts';
 import xml from 'https://cdn.skypack.dev/xmlbuilder2';
-import { Mission, MissionEventSummary } from './types.d.ts';
+import { Simulation, EventSummary } from './types.d.ts';
 
 const uuid_reg =
   /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
-const magic_lon_number: number = -68.5052672924891 - -120.610667;
-let fc_json: Mission;
+let fc_json: Simulation;
 
 // read in FlightClub JSON data
 try {
@@ -47,6 +46,19 @@ try {
 
 const name = `Launch ${fc_json.mission.datetime} ${fc_json.mission.description}`;
 
+const first_datapoint = fc_json.data.stageTrajectories.find(
+  s => s.stageNumber === 0,
+)?.telemetry[0];
+
+/**
+ * Not really sure what's going on here, but the "telemetry" data from FC seems
+ * to be offset by a constant amount on the longitudinal axis. Maybe it's a
+ * DRM thing?
+ */
+const magic_lon_number =
+  (first_datapoint || fc_json.mission.launchpad).longitude -
+  fc_json.mission.launchpad.longitude;
+
 const stages: string[] = fc_json.data.stageTrajectories.map(stage_trajectory =>
   stage_trajectory.telemetry
     .map(entry =>
@@ -59,7 +71,7 @@ const stages: string[] = fc_json.data.stageTrajectories.map(stage_trajectory =>
     .join(' '),
 );
 
-const events: MissionEventSummary[] = fc_json.data.eventLog
+const events: EventSummary[] = fc_json.data.eventLog
   .map(ev => {
     if (
       ev.value.match(/MECO/i) ||
@@ -105,7 +117,7 @@ const events: MissionEventSummary[] = fc_json.data.eventLog
       return null;
     }
   })
-  .filter((ev): ev is MissionEventSummary => ev != null);
+  .filter((ev): ev is EventSummary => ev != null);
 
 // define KML file
 const xml_doc = xml.create(
@@ -118,10 +130,8 @@ const xml_doc = xml.create(
       '@xmlns:atom': 'http://www.w3.org/2005/',
       Document: {
         name: `${name}.kml`,
-        Folder: {
-          name: name,
-          open: 1,
-          Folder: {
+        Folder: [
+          {
             name: 'Trajectories',
             open: 1,
             Placemark: stages.map((stage, i) => ({
@@ -132,23 +142,49 @@ const xml_doc = xml.create(
                 coordinates: stage,
               },
             })),
-            Folder: {
-              name: 'Events',
-              open: 1,
-              Placemark: events.map(event => ({
-                name: event.name,
+          },
+          {
+            name: 'Locations',
+            open: 1,
+            Placemark: [
+              {
+                name: fc_json.mission.launchpad.description,
                 Point: {
-                  altitudeMode: 'absolute',
+                  altitudeMode: 'relativeToGround',
                   coordinates: [
-                    event.longitude - magic_lon_number,
-                    event.latitude,
-                    event.altitude * 1000,
+                    fc_json.mission.launchpad.longitude,
+                    fc_json.mission.launchpad.latitude,
+                    0,
                   ].join(','),
                 },
+              },
+              ...(fc_json.mission.landingZones || []).map(landing => ({
+                name: landing.name,
+                Point: {
+                  altitudeMode: 'relativeToGround',
+                  coordinates: [landing.longitude, landing.latitude, 0].join(
+                    ',',
+                  ),
+                },
               })),
-            },
+            ],
           },
-        },
+          {
+            name: 'Events',
+            open: 1,
+            Placemark: events.map(event => ({
+              name: event.name,
+              Point: {
+                altitudeMode: 'absolute',
+                coordinates: [
+                  event.longitude - magic_lon_number,
+                  event.latitude,
+                  event.altitude * 1000,
+                ].join(','),
+              },
+            })),
+          },
+        ],
       },
     },
   },
