@@ -5,7 +5,6 @@ const {
 } = Deno;
 
 import { red } from 'https://deno.land/std/fmt/colors.ts';
-// import xml from 'https://dev.jspm.io/xmlbuilder2';
 import { join } from 'https://deno.land/std/path/mod.ts';
 import xml from 'https://cdn.skypack.dev/xmlbuilder2';
 import { Simulation, EventSummary } from './types.d.ts';
