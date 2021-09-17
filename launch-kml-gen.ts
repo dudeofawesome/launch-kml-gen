@@ -10,11 +10,11 @@ import { launch_kml_gen, LaunchKMLReturn, uuid_reg } from './main.ts';
 switch (input) {
   case '--help':
   case '-h':
-    console.info(`flightclub-to-kml`);
+    console.info(`launch-kml-gen`);
     console.info(`Generates KML files from rocket launch data`);
     console.info(``);
     console.info(`USAGE:`);
-    console.info(`flightclub-to-kml [FLIGHTCLUB LAUNCH UUID]`);
+    console.info(`launch-kml-gen [FLIGHTCLUB LAUNCH UUID]`);
     console.info(``);
     console.info(`OPTIONS:`);
     console.info(`-h, --help`);
