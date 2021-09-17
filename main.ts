@@ -1,4 +1,4 @@
-import xml from 'https://cdn.skypack.dev/xmlbuilder2';
+import xml from 'https://cdn.skypack.dev/xmlbuilder2@^3.0.1';
 import { Simulation, EventSummary } from './types.d.ts';
 
 export const uuid_reg =
