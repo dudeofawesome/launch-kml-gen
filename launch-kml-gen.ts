@@ -1,6 +1,6 @@
 #!/usr/bin/env deno run --allow-read --allow-write --allow-net
 
-const {
+let {
   args: [input],
 } = Deno;
 
@@ -24,6 +24,11 @@ switch (input) {
 }
 
 let kml: LaunchKMLReturn;
+
+if (input == null) {
+  const res = await fetch(`https://api.flightclub.io/v3/mission/next`);
+  input = (await res.json()).resourceId;
+}
 
 if (input.match(mission_reg) == null) {
   console.error(`Couldn't determine type of input`);
