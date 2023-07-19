@@ -1,99 +1,69 @@
 import xml from 'https://cdn.skypack.dev/xmlbuilder2@^3.0.1';
 import { Simulation, EventSummary } from './types.d.ts';
+import { ecef2lla } from './util/ecef2lla.ts';
 
-export const uuid_reg =
-  /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/i;
+export const mission_reg = /(mis_\w+)$/i;
 
-export async function launch_kml_gen(fc_uuid: string) {
+export async function launch_kml_gen(fc_mission_id: string) {
   let fc_json: Simulation;
 
-  if (fc_uuid.match(uuid_reg) == null) {
-    throw new Error(`Input is not a UUID`);
+  if (fc_mission_id.match(mission_reg) == null) {
+    throw new Error(`Input is not a missionId`);
   }
 
-  // read in FlightClub JSON data
-  const res = await fetch(
-    `https://api.flightclub.io/v2/simulation/?launchLibraryV2Id=${fc_uuid}`,
+  const sim_res = await fetch(
+    `http://api.flightclub.io/v3/simulation?missionId=${fc_mission_id}`,
     {
       headers: {
-        Accept: 'application/json',
         Referer: 'https://flightclub.io/',
-        'Content-Type': 'application/json',
         Origin: 'https://flightclub.io',
       },
     },
   );
-  fc_json = (await res.json())[0];
 
-  const name = `Launch ${fc_json.mission.datetime} ${fc_json.mission.description}`;
+  fc_json = (await sim_res.json())[0];
 
-  const first_datapoint = fc_json.data.stageTrajectories.find(
-    s => s.stageNumber === 0,
-  )?.telemetry[0];
+  const name = `Launch ${fc_json.mission.startDateTime} ${fc_json.mission.description}`;
+  console.log(name);
 
-  /**
-   * Not really sure what's going on here, but the "telemetry" data from FC seems
-   * to be offset by a constant amount on the longitudinal axis. Maybe it's a
-   * DRM thing?
-   */
-  const magic_lon_number =
-    (first_datapoint || fc_json.mission.launchpad).longitude -
-    fc_json.mission.launchpad.longitude;
-
-  const stages: string[] = fc_json.data.stageTrajectories.map(
-    stage_trajectory =>
+  const stages: string[] = fc_json.data.stageTrajectories
+    .sort((a, b) => a.stageNumber - b.stageNumber)
+    .map((stage_trajectory) =>
       stage_trajectory.telemetry
-        .map(entry =>
-          [
-            entry.longitude - magic_lon_number,
-            entry.latitude,
-            entry.altitude * 1000,
-          ].join(','),
-        )
+        .map((entry) => {
+          const lla = ecef2lla(...entry.x_NI);
+          return [lla.lon, lla.lat, lla.alt].join(',');
+        })
         .join(' '),
-  );
+    );
+
+  const joined_telemetry = fc_json.data.stageTrajectories
+    .map((t) => t.telemetry)
+    .flat();
 
   const events: EventSummary[] = fc_json.data.eventLog
-    .map(ev => {
+    .map((ev) => {
       if (
         ev.value.match(/MECO/i) ||
-        ev.value.match(/Entry Burn Ignition/i) ||
+        ev.value.match(/Ignition/i) ||
         ev.value.match(/Entry Burn Shutdown/i) ||
-        ev.value.match(/Landing Burn Ignition/i)
-      ) {
-        // 1st stage events
-        const tel = fc_json.data.stageTrajectories
-          .find(st => st.stageNumber === 0)
-          ?.telemetry.find(te => te.time === Number.parseInt(ev.key, 10));
-        if (tel == null) {
-          console.error(`Couldn't find time to match event`);
-          return null;
-        }
-        return {
-          name: ev.value,
-          latitude: tel.latitude,
-          longitude: tel.longitude,
-          altitude: tel.altitude,
-        };
-      } else if (
         ev.value.match(/SECO/i) ||
         ev.value.match(/Payload Separation/i) ||
-        ev.value.match(/Deorbit Ignition/i) ||
         ev.value.match(/Fuel Depletion/i)
       ) {
-        // 2nd stage events
-        const tel = fc_json.data.stageTrajectories
-          .find(st => st.stageNumber === 1)
-          ?.telemetry.find(te => te.time === Number.parseInt(ev.key, 10));
+        // 1st stage events
+        const time = Math.round(Number.parseInt(ev.key, 10));
+        const tel = joined_telemetry.find((te) => Math.round(te.t) === time);
         if (tel == null) {
-          console.error(`Couldn't find time to match event`);
+          console.error(`Couldn't find time to match event: "${ev.value}"`);
           return null;
         }
+        const pos = ecef2lla(...tel.x_NI);
         return {
           name: ev.value,
-          latitude: tel.latitude,
-          longitude: tel.longitude,
-          altitude: tel.altitude,
+          latitude: pos.lat,
+          longitude: pos.lon,
+          altitude: pos.alt,
         };
       } else {
         return null;
@@ -130,17 +100,20 @@ export async function launch_kml_gen(fc_uuid: string) {
               open: 1,
               Placemark: [
                 {
-                  name: fc_json.mission.launchpad.description,
+                  name: fc_json.mission.initialConditions.launchpad.launchpad
+                    .description,
                   Point: {
                     altitudeMode: 'relativeToGround',
                     coordinates: [
-                      fc_json.mission.launchpad.longitude,
-                      fc_json.mission.launchpad.latitude,
+                      fc_json.mission.initialConditions.launchpad.launchpad
+                        .longitude,
+                      fc_json.mission.initialConditions.launchpad.launchpad
+                        .latitude,
                       0,
                     ].join(','),
                   },
                 },
-                ...(fc_json.mission.landingZones || []).map(landing => ({
+                ...(fc_json.mission.landingZones || []).map((landing) => ({
                   name: landing.name,
                   Point: {
                     altitudeMode: 'relativeToGround',
@@ -154,14 +127,14 @@ export async function launch_kml_gen(fc_uuid: string) {
             {
               name: 'Events',
               open: 1,
-              Placemark: events.map(event => ({
+              Placemark: events.map((event) => ({
                 name: event.name,
                 Point: {
                   altitudeMode: 'absolute',
                   coordinates: [
-                    event.longitude - magic_lon_number,
+                    event.longitude,
                     event.latitude,
-                    event.altitude * 1000,
+                    event.altitude,
                   ].join(','),
                 },
               })),
@@ -174,7 +147,7 @@ export async function launch_kml_gen(fc_uuid: string) {
 
   return {
     launch_name: fc_json.mission.description,
-    launch_datetime: fc_json.mission.datetime,
+    launch_datetime: fc_json.mission.startDateTime,
     kml_contents: xml_doc.end({ prettyPrint: true }),
   };
 }

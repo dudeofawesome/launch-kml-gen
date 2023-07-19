@@ -5,7 +5,7 @@ const {
 } = Deno;
 
 import { join } from 'https://deno.land/std/path/mod.ts';
-import { launch_kml_gen, LaunchKMLReturn, uuid_reg } from './main.ts';
+import { launch_kml_gen, LaunchKMLReturn, mission_reg } from './main.ts';
 
 switch (input) {
   case '--help':
@@ -14,7 +14,7 @@ switch (input) {
     console.info(`Generates KML files from rocket launch data`);
     console.info(``);
     console.info(`USAGE:`);
-    console.info(`launch-kml-gen [FLIGHTCLUB LAUNCH UUID]`);
+    console.info(`launch-kml-gen [FLIGHTCLUB LAUNCH RESOURCE ID]`);
     console.info(``);
     console.info(`OPTIONS:`);
     console.info(`-h, --help`);
@@ -25,16 +25,17 @@ switch (input) {
 
 let kml: LaunchKMLReturn;
 
-if (input.startsWith('https://') || input.match(uuid_reg) != null) {
-  const uuid = input.match(uuid_reg)?.[1];
-  if (uuid == null) {
-    throw new Error(`Couldn't find a valid UUID`);
-  }
-
-  kml = await launch_kml_gen(uuid);
-} else {
+if (input.match(mission_reg) == null) {
   console.error(`Couldn't determine type of input`);
   Deno.exit(1);
+} else {
+  const mission_id = input.match(mission_reg)?.[1];
+  if (mission_id != null) {
+    kml = await launch_kml_gen(mission_id);
+  } else {
+    console.error(`Couldn't determine type of input`);
+    Deno.exit(1);
+  }
 }
 
 const name = `Launch ${kml.launch_datetime} ${kml.launch_name}`;

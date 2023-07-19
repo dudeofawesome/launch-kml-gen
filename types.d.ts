@@ -25,17 +25,23 @@ export interface Mission {
   code: string;
   description: string;
   /** ISO-8601 datetime */
-  datetime: string;
-  launchpad: {
-    code: string;
-    description: string;
-    /** 2 letter country code */
-    country: string;
-    /** 2 letter state code */
-    state: string;
-    latitude: number;
-    longitude: number;
-    elevation: number;
+  startDateTime: string;
+  initialConditions: {
+    launchpad: {
+      /** ISO-8601 datetime */
+      launchDateTime: string;
+      launchpad: {
+        code: string;
+        description: string;
+        /** 2 letter country code */
+        country: string;
+        /** 2 letter state code */
+        state: string;
+        latitude: number;
+        longitude: number;
+        elevation: number;
+      };
+    };
   };
   company: {
     code: string;
@@ -110,38 +116,68 @@ export interface EventData {
 }
 
 export interface DataPoint {
-  time: number;
-  /** Kilometers ASL */
-  altitude: number;
-  velocity: number;
-  downrangeDistance: number;
-  aerodynamicPressure: number;
-  propellantMass: number;
-  flowRate: number;
-  deltaVTotal?: number;
-  deltaVGravity?: number;
-  deltaVDrag?: number;
-  throttle: number;
-  acceleration: number;
-  angleOfAttack: number;
-  angleOfVelocity: number;
-  elevation: number;
-  dragCoefficient: number;
-  azimuth: number;
-  thrustCoefficient?: number;
-  latitude: number;
-  longitude: number;
-  thrust: number;
-  isp?: number;
-  iipLatitude: number;
-  iipLongitude: number;
-  engineThrottles: number[];
-  xinertialRF: number;
-  yinertialRF: number;
-  zinertialRF: number;
-  xfixedRF: number;
-  yfixedRF: number;
-  zfixedRF: number;
+  /** time */
+  t: number;
+  /** system mass */
+  m: number;
+  /** mass of propellant */
+  mp: number[];
+  /** mass flow rate */
+  md: number[];
+  /** system center of mass */
+  scom: [number, number, number];
+  /** center of mass */
+  com: [number, number, number];
+  /** center of pressure */
+  cop: [number, number, number];
+  /** non-inertial position */
+  x_NI: [number, number, number];
+  /** non-inertial velocity */
+  v_NI: [number, number, number];
+  /** inertial position */
+  x_I: [number, number, number];
+  /** inertial velocity */
+  v_I: [number, number, number];
+  /** reference frames (inertial, non-inertial, guidance) */
+  frames: [string, string, string];
+  /** quaternion to convert from non-inertial frame to inertial frame */
+  qt_IE: [number, number, number, number];
+  /** quaternion to convert from inertial frame to body frame */
+  qt_BI: [number, number, number, number];
+  /** quaternion to convert from inertial frame to local frame (ENU) */
+  qt_LI: [number, number, number, number];
+  /** quaternion to convert from inertial frame to guidance frame (usually ENU, but is dynamic) */
+  qt_GI: [number, number, number, number];
+  /** acceleration */
+  a: number;
+  /** acceleration minus gravity contribution */
+  accMinusG: number;
+  /** angular velocity */
+  w: [number, number, number];
+  /** angular acceleration */
+  alpha: [number, number, number];
+  /** thrust */
+  ts: number;
+  /** specific impulse */
+  isp: number;
+  /** throttle percentage */
+  tl: number[];
+  /** thrust vector for each engine */
+  tvc_engine: number[][];
+  /** PID values for the TVC controllers */
+  tvc_pid: number[];
+  /** PID values for the RCS controllers */
+  rcs_pid: number[];
+  /** torque */
+  tq: number[];
+  /** aerodynamic pressure */
+  q: number;
+  /** drag coefficient */
+  cd: number;
+  /** lift coefficient */
+  cl: number;
+  /** delta-v remaining */
+  dv: number;
 }
 
 export interface Vehicle {
