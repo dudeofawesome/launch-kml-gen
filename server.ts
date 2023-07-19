@@ -4,7 +4,10 @@ import { launch_kml_gen } from './main.ts';
 const app = new Application();
 const router = new Router();
 
-router.redirect('/', 'launch_kml_gen', 307);
+router.get('/', (ctx) => {
+  ctx.response.status = 307;
+  ctx.response.redirect('/launch_kml_gen');
+});
 
 router.get('/launch_kml_gen/:fc_mis_id', async (ctx) => {
   const fc_mis_id = ctx.request.url.pathname.split('/').at(-1);
@@ -36,7 +39,6 @@ router.get('/launch_kml_gen', async (ctx) => {
   ctx.response.body = `Getting next launch: ${fc_mis_id}`;
   ctx.response.status = 307;
   ctx.response.redirect(`/launch_kml_gen/${fc_mis_id}`);
-  return;
 });
 
 app.use(router.routes());
