@@ -2,6 +2,14 @@ import xml from 'https://cdn.skypack.dev/xmlbuilder2@^3.0.1';
 import { Simulation, EventSummary } from './types.d.ts';
 import { ecef2lla } from './util/ecef2lla.ts';
 
+export interface lla {
+  lon: number;
+  lat: number;
+  alt: number;
+}
+
+export type llai = lla & { ignited: boolean };
+
 export const mission_reg = /(mis_\w+)$/i;
 
 export async function launch_kml_gen(fc_mission_id: string) {
@@ -26,16 +34,36 @@ export async function launch_kml_gen(fc_mission_id: string) {
   const name = `Launch ${fc_json.mission.startDateTime} ${fc_json.mission.description}`;
   console.log(name);
 
-  const stages: string[] = fc_json.data.stageTrajectories
+  const stages: llai[][][] = fc_json.data.stageTrajectories
     .sort((a, b) => a.stageNumber - b.stageNumber)
-    .map((stage_trajectory) =>
-      stage_trajectory.telemetry
-        .map((entry) => {
-          const lla = ecef2lla(...entry.x_NI);
-          return [lla.lon, lla.lat, lla.alt].join(',');
-        })
-        .join(' '),
+    .map(
+      (stage_trajectory) =>
+        stage_trajectory.telemetry
+          .map<llai>((entry) => {
+            const lla = ecef2lla(...entry.x_NI);
+            return {
+              ...lla,
+              ignited: !entry.tl
+                .map((e) => Math.floor(e))
+                .every((e) => e === 0),
+            };
+          })
+          .reduce<llai[][]>((accel_group, point, i, arr) => {
+            const a = accel_group.at(-1);
+            if (a == null || a.at(-1)?.ignited !== point.ignited) {
+              accel_group.push([point]);
+            } else {
+              a.push(point);
+            }
+
+            return accel_group;
+          }, []),
+      // .map((entry) => [entry.lon, entry.lat, entry.alt].join(','))
+      // .join(' '),
     );
+
+  // console.log(fc_json.data.stageTrajectories[0].telemetry.map((t) => t.a));
+  console.log(stages.map((s) => s.length));
 
   const joined_telemetry = fc_json.data.stageTrajectories
     .map((t) => t.telemetry)
@@ -51,9 +79,10 @@ export async function launch_kml_gen(fc_mission_id: string) {
         ev.value.match(/Payload Separation/i) ||
         ev.value.match(/Fuel Depletion/i)
       ) {
-        // 1st stage events
-        const time = Math.round(Number.parseInt(ev.key, 10));
-        const tel = joined_telemetry.find((te) => Math.round(te.t) === time);
+        const time = Math.round(Number.parseInt(ev.key, 10) / 10);
+        const tel = joined_telemetry.find(
+          (te) => Math.round(te.t / 10) === time,
+        );
         if (tel == null) {
           console.error(`Couldn't find time to match event: "${ev.value}"`);
           return null;
@@ -82,17 +111,44 @@ export async function launch_kml_gen(fc_mission_id: string) {
         '@xmlns:atom': 'http://www.w3.org/2005/',
         Document: {
           name: `${name}.kml`,
+          Style: [
+            {
+              '@id': 'accelerating',
+              LineStyle: {
+                color: 'ff025ee0',
+                width: 4,
+              },
+            },
+            {
+              '@id': 'coasting',
+              LineStyle: {
+                color: 'ffafafaf',
+                width: 4,
+              },
+            },
+          ],
           Folder: [
             {
               name: 'Trajectories',
               open: 1,
-              Placemark: stages.map((stage, i) => ({
+              Folder: stages.map((stage, i) => ({
                 name: `Stage ${i + 1}`,
-                LineString: {
-                  tessellate: 1,
-                  altitudeMode: 'absolute',
-                  coordinates: stage,
-                },
+                open: 0,
+                Placemark: stage.map((accel_group, i) => ({
+                  name: accel_group[0]?.ignited ? 'Accelerating' : 'Coasting',
+                  visibility:
+                    i > 0 || (i === 0 && accel_group[0]?.ignited) ? 1 : 0,
+                  styleUrl: `#${
+                    accel_group[0]?.ignited ? 'accelerating' : 'coasting'
+                  }`,
+                  LineString: {
+                    tessellate: 1,
+                    altitudeMode: 'absolute',
+                    coordinates: accel_group
+                      .map((p) => [p.lon, p.lat, p.alt].join(','))
+                      .join(' '),
+                  },
+                })),
               })),
             },
             {
