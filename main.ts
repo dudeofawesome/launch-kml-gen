@@ -1,4 +1,6 @@
 import xml from 'https://cdn.skypack.dev/xmlbuilder2@^3.0.1';
+import { Temporal } from 'https://cdn.skypack.dev/@js-temporal/polyfill@^0.4.4?dts';
+
 import { Simulation, EventSummary } from './types.d.ts';
 import { ecef2lla } from './util/ecef2lla.ts';
 
@@ -88,8 +90,16 @@ export async function launch_kml_gen(fc_mission_id: string) {
           return null;
         }
         const pos = ecef2lla(...tel.x_NI);
+        const d = Temporal.Duration.from({
+          seconds: Math.round(Math.abs(tel.t)),
+        });
+        const mins = Math.floor(d.total('minutes'));
+        const secs =
+          d.total('seconds') - (mins % Math.floor(d.total('seconds'))) * 60;
         return {
-          name: ev.value,
+          name: `${ev.value} @ T${tel.t > 0 ? '+' : '-'}${mins
+            .toString()
+            .padStart(2, '0')}:${secs.toString().padStart(2, '0')}`,
           latitude: pos.lat,
           longitude: pos.lon,
           altitude: pos.alt,
