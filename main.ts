@@ -38,34 +38,26 @@ export async function launch_kml_gen(fc_mission_id: string) {
 
   const stages: llai[][][] = fc_json.data.stageTrajectories
     .sort((a, b) => a.stageNumber - b.stageNumber)
-    .map(
-      (stage_trajectory) =>
-        stage_trajectory.telemetry
-          .map<llai>((entry) => {
-            const lla = ecef2lla(...entry.x_NI);
-            return {
-              ...lla,
-              ignited: !entry.tl
-                .map((e) => Math.floor(e))
-                .every((e) => e === 0),
-            };
-          })
-          .reduce<llai[][]>((accel_group, point, i, arr) => {
-            const a = accel_group.at(-1);
-            if (a == null || a.at(-1)?.ignited !== point.ignited) {
-              accel_group.push([point]);
-            } else {
-              a.push(point);
-            }
+    .map((stage_trajectory) =>
+      stage_trajectory.telemetry
+        .map<llai>((entry) => {
+          const lla = ecef2lla(...entry.x_NI);
+          return {
+            ...lla,
+            ignited: !entry.tl.map((e) => Math.floor(e)).every((e) => e === 0),
+          };
+        })
+        .reduce<llai[][]>((accel_group, point, i, arr) => {
+          const a = accel_group.at(-1);
+          if (a == null || a.at(-1)?.ignited !== point.ignited) {
+            accel_group.push([point]);
+          } else {
+            a.push(point);
+          }
 
-            return accel_group;
-          }, []),
-      // .map((entry) => [entry.lon, entry.lat, entry.alt].join(','))
-      // .join(' '),
+          return accel_group;
+        }, []),
     );
-
-  // console.log(fc_json.data.stageTrajectories[0].telemetry.map((t) => t.a));
-  console.log(stages.map((s) => s.length));
 
   const joined_telemetry = fc_json.data.stageTrajectories
     .map((t) => t.telemetry)
